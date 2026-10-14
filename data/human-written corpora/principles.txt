@@ -1,11 +1,14 @@
-3635 файлов содержатся в RLC, из них 1292 содержат в файле head указание типа как esssay. Для нашей задачи нам нужны 100 текстов, поэтому мы брали каждый 12 из них.
+3635 файлов содержатся в RLC, из них 1292 содержат в файле head указание типа как esssay. Для нашей задачи нам нужны 100 текстов, поэтому мы настроили шаг удаления так, чтобы удалялся в среднем каждый 12,92 текст. 
 Код: 
-bash
-cd /Users/arinasnykhovskaya/Downloads/rltc/essays
-i=1
-ls -1 *.txt | sort | while read -r file; do
-    if [ $((i % 12)) -ne 0 ]; then
-        rm "$file"
-    fi
-    i=$((i + 1))
-done
+
+import os
+
+step = 12.92
+files = sorted([f for f in os.listdir('.') if f.endswith('.txt')])
+accumulator = 0.0
+
+for filename in files:
+    accumulator += 1.0
+    if accumulator >= step:
+        os.remove(filename)
+        accumulator -= step
