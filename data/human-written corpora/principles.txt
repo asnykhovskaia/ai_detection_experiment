@@ -1,14 +1,60 @@
 3635 файлов содержатся в RLC, из них 1292 содержат в файле head указание типа как esssay. Для нашей задачи нам нужны 100 текстов, поэтому мы настроили шаг удаления так, чтобы удалялся в среднем каждый 12,92 текст. 
+Метод: из папки rltc, скачанной с сайта, мы удалили все файлы с началом EN_, оставив только русские тексты. Среди них сначала мы поискали все файлы, содержащие essay -- это фалйы типа head.txt. Потом кодом сопоставили им обычные txt:
+
+import os
+import shutil
+
+total_folder = r"/Users/arinasnykhovskaya/Downloads/rltc 2"
+folder_x = r"/Users/arinasnykhovskaya/Downloads/rltc 2/essays_heads"
+folder_y = r"/Users/arinasnykhovskaya/Downloads/rltc 2/essays"
+
+os.makedirs(folder_y, exist_ok=True)
+
+head_numbers = set()
+for file in os.listdir(folder_x):
+    if ".head." in file:
+        number = file.split(".head.")[0]
+        head_numbers.add(number)
+
+for file in os.listdir(total_folder):
+    full_path = os.path.join(total_folder, file)
+    
+    if os.path.isfile(full_path):
+        name_without_ext, _ = os.path.splitext(file)
+        
+        if name_without_ext in head_numbers:
+            destination_path = os.path.join(folder_y, file)
+            shutil.move(full_path, destination_path)
+
+Удаление каждого 12,92: 
 Код: 
 
 import os
 
 step = 12.92
-files = sorted([f for f in os.listdir('.') if f.endswith('.txt')])
+folder = '/Users/arinasnykhovskaya/Downloads/rltc 2/essays'
+files = sorted([os.path.join(folder, f) for f in os.listdir(folder) if f.endswith('.txt')])
 accumulator = 0.0
 
 for filename in files:
     accumulator += 1.0
     if accumulator >= step:
-        os.remove(filename)
         accumulator -= step
+    else:
+        os.remove(filename)
+
+
+import os
+
+step = 12.92
+folder = '/Users/arinasnykhovskaya/Downloads/rltc 2/essays_heads'
+files = sorted([os.path.join(folder, f) for f in os.listdir(folder) if f.endswith('.txt')])
+accumulator = 0.0
+
+for filename in files:
+    accumulator += 1.0
+    if accumulator >= step:
+        accumulator -= step
+    else:
+        os.remove(filename)
+
