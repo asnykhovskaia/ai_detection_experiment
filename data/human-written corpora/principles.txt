@@ -1,1 +1,11 @@
 3635 файлов содержатся в RLC, из них 1292 содержат в файле head указание типа как esssay. Для нашей задачи нам нужны 100 текстов, поэтому мы брали каждый 12 из них.
+Код: 
+bash
+cd /Users/arinasnykhovskaya/Downloads/rltc/essays
+i=1
+ls -1 *.txt | sort | while read -r file; do
+    if [ $((i % 12)) -ne 0 ]; then
+        rm "$file"
+    fi
+    i=$((i + 1))
+done
