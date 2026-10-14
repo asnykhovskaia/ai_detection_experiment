@@ -74,3 +74,43 @@ for length, f in selected:
     )
 
 print(f"\nГотово. Отобрано {len(selected)} текстов в папку:\n{OUTPUT_DIR}")
+
+
+Код для итогового сопоставления файлов с метаданными с выбранными эссе:
+import os
+import shutil
+
+total_folder = r"/Users/arinasnykhovskaya/Downloads/rltc/heads_routine"
+folder_x = r"/Users/arinasnykhovskaya/Downloads/rltc/essays_routine_selected_100"
+folder_y = r"/Users/arinasnykhovskaya/Downloads/rltc/heads_100"
+
+os.makedirs(folder_y, exist_ok=True)
+
+# Шаг 1: Собираем номера готовых текстов из folder_x
+selected_numbers = set()
+for file in os.listdir(folder_x):
+    full_path = os.path.join(folder_x, file)
+    if os.path.isfile(full_path):
+        # Получаем имя файла без расширения (например, "123" из "123.txt")
+        name_without_ext, _ = os.path.splitext(file)
+        selected_numbers.add(name_without_ext)
+
+# Инициализируем счетчик перенесенных файлов
+moved_count = 0
+
+# Шаг 2: Ищем аналогичные .head файлы в total_folder и переносим их
+for file in os.listdir(total_folder):
+    full_path = os.path.join(total_folder, file)
+    
+    if os.path.isfile(full_path) and ".head." in file:
+        # Извлекаем номер из имени head-файла (например, "123" из "123.head.txt")
+        number = file.split(".head.")[0]
+        
+        # Если этот номер есть среди готовых текстов, переносим его head-аналог
+        if number in selected_numbers:
+            destination_path = os.path.join(folder_y, file)
+            shutil.move(full_path, destination_path)
+            moved_count += 1
+            print(f"Перенесен head-файл: {file}")
+
+print(f"\n[Успешно] Всего перенесено head-файлов: {moved_count}")
