@@ -171,7 +171,9 @@ Invalid numeric response	Модель ответила не числом	Про�
 output already exists	CSV уже есть	--overwrite или новый --output
 Empty text: ...	Пустой .txt	Удалить/исправить файл
 Not enough texts: available=... requested=...	Текстов меньше, чем --per-source	Уменьшить --per-source или добавить тексты
-10. Рекомендуемый порядок первого запуска
+
+
+9. Рекомендуемый порядок первого запуска
 claude --version — CLI работает.
 
 git clone репозитория, проверить структуру data/.
