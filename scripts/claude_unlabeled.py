@@ -1,3 +1,19 @@
+"""Детектор AI/человек — режим UNLABELED (метка скрыта).
+
+Корпуса:
+  <ROOT>/unlabeled/text_corpora/A/*.txt
+  <ROOT>/unlabeled/text_corpora/B/*.txt
+
+В сообщении группы называются A/B без указания, где AI. Дополнительно
+подмешиваются --context-examples примеров из каждой группы (только текст,
+без метки). Это проверка детекции "по стилю", а не по названию папки.
+
+DEPTH = 1 => ROOT = HERE.parent.
+
+Примеры:
+  python claude_unlabeled.py --per-source 10 --repeats 3
+  python claude_unlabeled.py --per-source 10 --repeats 3 --execute --context-examples 2
+"""
 import argparse
 import csv
 import json
@@ -8,7 +24,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 MODE = 'unlabeled'
@@ -20,13 +35,15 @@ ROOT = HERE.parents[DEPTH - 1] if DEPTH else HERE
 COLUMNS = ('prompt_name', 'text_name', 'repeat', 'response')
 
 
-def files_in(folder):
+def files_in(folder: Path) -> list[Path]:
+    """Все .txt рекурсивно, отсортированные по строковому пути (детерминизм)."""
     if not folder.is_dir():
         raise ValueError(f'Missing directory: {folder}')
     return sorted((p for p in folder.rglob('*.txt') if p.is_file()), key=lambda p: str(p))
 
 
-def choose(items, n, seed):
+def choose(items: list[Path], n: int | None, seed: int) -> list[Path]:
+    """n случайных элементов с фиксированным seed; n=None — вернуть все."""
     if n is None:
         return sorted(items, key=lambda p: str(p))
     if len(items) < n:
@@ -34,7 +51,11 @@ def choose(items, n, seed):
     return sorted(random.Random(seed).sample(items, n), key=lambda p: str(p))
 
 
-def dataset(mode, per_source, num_texts, seed):
+def dataset(mode: str, per_source: int, num_texts: int, seed: int) -> list[dict]:
+    """Собирает выборку {path, group, name}.
+
+    В unlabeled режиме — по per_source из A и B; group = 'A'/'B'.
+    """
     if mode == 'labeled':
         groups = [(ROOT / 'labeled_text_corpora' / 'AI', 'AI'),
                   (ROOT / 'labeled_text_corpora' / 'Human', 'Human')]
@@ -43,21 +64,27 @@ def dataset(mode, per_source, num_texts, seed):
         groups = [(ROOT / 'unlabeled' / 'text_corpora' / 'A', 'A'),
                   (ROOT / 'unlabeled' / 'text_corpora' / 'B', 'B')]
         n = per_source
-    else:
+    else:  # undivided
         groups = [(ROOT / 'unlabeled' / 'undivided' / 'C', None)]
         n = num_texts
+
     result = []
     for ix, (folder, group) in enumerate(groups):
         items = choose(files_in(folder), n, seed + ix * 1997)
         for path in items:
-            result.append({'path': path, 'group': group, 'name': (group + '/' + path.name) if group else path.name})
+            result.append({
+                'path': path,
+                'group': group,
+                'name': (group + '/' + path.name) if group else path.name,
+            })
     names = [x['name'] for x in result]
     if len(names) != len(set(names)):
         raise ValueError('Duplicate text basenames across groups; cannot identify results in the CSV')
     return result
 
 
-def locate_prompts(custom, mode):
+def locate_prompts(custom: str | None, mode: str) -> Path:
+    """Ищет папку с промптами; --prompts-dir имеет приоритет."""
     if custom:
         p = Path(custom).expanduser()
         return p if p.is_absolute() else (Path.cwd() / p)
@@ -69,14 +96,19 @@ def locate_prompts(custom, mode):
     raise ValueError('No prompt directory found. Supply --prompts-dir')
 
 
-def prompt_files(directory):
+def prompt_files(directory: Path) -> list[Path]:
     prompts = sorted(directory.glob('*.txt'), key=lambda p: p.name)
     if not prompts:
         raise ValueError(f'No TXT prompts in {directory}')
     return prompts
 
 
-def examples_for_unlabeled(group_files, target_path, count=2):
+def examples_for_unlabeled(group_files: list[dict], target_path: Path, count: int = 2) -> str:
+    """2 референсных примера из каждой группы A/B (кроме текущего текста).
+
+    ВНИМАНИЕ: берутся первые по алфавиту — потенциальный bias. Для честного
+    эксперимента лучше random.sample с общим seed.
+    """
     lines = []
     for group in ('A', 'B'):
         candidates = [x for x in group_files if x['group'] == group and x['path'] != target_path]
@@ -89,10 +121,12 @@ def examples_for_unlabeled(group_files, target_path, count=2):
     return '\n'.join(lines)
 
 
-def build_message(prompt, item, mode, sampled, context_examples):
+def build_message(prompt: str, item: dict, mode: str, sampled: list[dict], context_examples: int) -> str:
+    """Промпт + интро (A/B без раскрытия) + контекстные примеры + текст."""
     content = item['path'].read_text(encoding='utf-8-sig').strip()
     if not content:
         raise ValueError('Empty text: ' + str(item['path']))
+
     if mode == 'labeled':
         intro = 'Dataset folder name (source is disclosed): ' + item['group'] + '\n\n'
     elif mode == 'unlabeled':
@@ -107,10 +141,12 @@ def build_message(prompt, item, mode, sampled, context_examples):
     return prompt.strip() + '\n\n' + intro + 'Text:\n' + content + '\n'
 
 
-def cli_call(agent, message, timeout):
+def cli_call(agent: str, message: str, timeout: int) -> str:
+    """Вызов claude/codex CLI; возвращает очищенный текст ответа."""
     command_name = 'claude' if agent == 'claude' else 'codex'
     if not shutil.which(command_name):
         raise RuntimeError(f'{command_name} CLI not installed or unavailable on PATH')
+
     with tempfile.TemporaryDirectory(prefix='detector_answer_') as temp:
         if agent == 'claude':
             args = ['claude', '-p', '--output-format', 'json', '--tools', '']
@@ -134,10 +170,12 @@ def cli_call(agent, message, timeout):
     return answer.strip()
 
 
-def validate(prompt_name, answer):
+def validate(prompt_name: str, answer: str) -> str:
+    """Валидация ответа по типу промпта (1* -> число, 2* -> yes/no)."""
     name = prompt_name.lower()
     numeric = name.startswith('1') or 'likelihood' in name or 'likelyhood' in name
     yesno = name.startswith('2') or 'yes' in name
+
     if numeric:
         value = answer.strip().removesuffix('%').strip()
         if not re.fullmatch(r'(?:\d+(?:\.\d+)?|\.\d+)', value) or not 0 <= float(value) <= 100:
@@ -150,7 +188,7 @@ def validate(prompt_name, answer):
     return answer
 
 
-def run():
+def run() -> None:
     mode, agent = MODE, AGENT
     parser = argparse.ArgumentParser(description=f'{agent} {mode} detector')
     parser.add_argument('--per-source', type=int, default=10)
@@ -165,29 +203,37 @@ def run():
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
+
     if min(args.per_source, args.num_texts, args.repeats, args.timeout) < 1 or args.context_examples < 0:
         parser.error('Counts must be positive (context-examples may be zero)')
+
     prompts_dir = locate_prompts(args.prompts_dir, mode)
     prompts = prompt_files(prompts_dir)
     data = dataset(mode, args.per_source, args.num_texts, args.seed)
+
     output = Path(args.output) if args.output else ROOT / 'unlabeled' / 'undivided' / 'outputs' / f'{agent}_{mode}.csv'
     if not output.is_absolute():
         output = HERE / output
+
     jobs = [(item, p, i) for item in data for p in prompts for i in range(args.repeats)]
     random.Random(args.seed + 501).shuffle(jobs)
     if args.max_calls is not None:
         jobs = jobs[:args.max_calls]
+
     print(f'MODE={mode} AGENT={agent} texts={len(data)} prompts={len(prompts)} '
           f'repeats={args.repeats} calls={len(jobs)}')
     print('Prompts:', prompts_dir)
     print('Output:', output)
+
     if not args.execute:
         example = build_message(prompts[0].read_text(encoding='utf-8-sig'), data[0], mode,
                                 data, args.context_examples)
         print('DRY RUN (no requests). Message preview:\n', example[:1200])
         return
+
     if output.exists() and not args.overwrite:
         parser.error(f'{output} already exists; use a different --output, or --overwrite to reset')
+
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open('w', newline='', encoding='utf-8') as stream:
         writer = csv.writer(stream)
@@ -203,12 +249,13 @@ def run():
                 stream.flush()
                 os.fsync(stream.fileno())
                 completed += 1
-                print(f'[{number}/{len(jobs)}] OK {prompt.name} {item["name"]} repeat={repeat+1} => {answer}', flush=True)
+                print(f'[{number}/{len(jobs)}] OK {prompt.name} {item["name"]} '
+                      f'repeat={repeat+1} => {answer}', flush=True)
             except (RuntimeError, ValueError, subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
-                print(f'[{number}/{len(jobs)}] ERROR {prompt.name} {item["name"]} repeat={repeat+1}: {exc}',
-                      file=sys.stderr, flush=True)
+                print(f'[{number}/{len(jobs)}] ERROR {prompt.name} {item["name"]} '
+                      f'repeat={repeat+1}: {exc}', file=sys.stderr, flush=True)
     print(f'DONE: {completed}/{len(jobs)} successful; {output}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run()
