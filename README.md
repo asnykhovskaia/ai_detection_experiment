@@ -5,3 +5,4 @@ LLM-Generated Content Juho Leinonen & Paul Denny Aalto University University of 
 Как запустить код:
 
 Где найти результаты: 
+в директории outputs
