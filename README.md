@@ -6,6 +6,7 @@ LLM-Generated Content Juho Leinonen & Paul Denny Aalto University University of 
 Один файл — от установки до получения результатов. Все команды выполняются в терминале (macOS / Linux).
 
 1. Требования
+   
 Python 3.10+ — скрипты используют list[Path], str | None.
 
 Claude Code CLI — обязателен для claude_*.py и run_detection.py.
@@ -18,7 +19,10 @@ Codex CLI — опционально, только если хотите аге�
 
 bash
 python3 --version
+
+
 2. Установка Claude Code CLI
+
 bash
 curl -fsSL https://claude.ai/install.sh | bash
 Откройте новый терминал и проверьте:
@@ -43,7 +47,9 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 codex --version
 Первый запуск codex попросит войти через ChatGPT (Plus/Pro/Business). В скриптах claude_*.py агент задаётся константой AGENT = 'claude' — замените на 'codex', чтобы переключиться. run_detection.py поддерживает только claude.
 
+
 3. Скачивание данных
+   
 bash
 git clone https://github.com/asnykhovskaia/ai_detection_experiment.git
 cd ai_detection_experiment
@@ -71,6 +77,7 @@ ai_detection_experiment/
 Если структура в репозитории отличается — скрипт упадёт с Missing directory. Тогда либо приведите папки к ожидаемому виду, либо передайте --prompts-dir (для промптов), либо отредактируйте ROOT/DEPTH в начале файла. Для run_detection.py достаточно указать --root.
 
 4. Подготовка данных (однократно, если нужно)
+
 4.1. Отбор 100 текстов средней длины
 Скрипт 100 mid-ranking selection.py берёт из essays_routine 100 текстов из середины распределения по длине (убирает влияние длины на детекцию). Пути в оригинале захардкожены под macOS — откройте файл и замените:
 
@@ -87,7 +94,9 @@ python3 "100 mid-ranking selection.py"
 
 bash
 python3 "head-text corpora pairings.py"
+
 5. Запуск основного эксперимента
+
 Все четыре скрипта по умолчанию работают в dry-run: без --execute они только печатают превью сообщения и ничего не вызывают. Это защита от случайной траты токенов.
 
 5.1. claude_labeled.py — режим labeled (метка раскрыта)
@@ -129,7 +138,9 @@ bash
 python3 run_detection.py --root /путь/к/проекту --max-calls 1 --execute
 Ограничение: run_detection.py не сохраняет номер повтора в CSV (колонки prompt_name, text_name, response). При --repeats > 1 повторы неотличимы от разных текстов. Для анализа повторов используйте claude_*.py (там есть колонка repeat) или добавьте 'repeat' в COLUMNS.
 
+
 6. Полезные флаги (общие для claude_*.py)
+
 Флаг	Значение
 --per-source N	Текстов с каждого источника (по умолчанию 10)
 --num-texts N	Текстов в undivided (по умолчанию 10 или 20)
@@ -142,7 +153,9 @@ python3 run_detection.py --root /путь/к/проекту --max-calls 1 --exec
 --execute	Реально вызывать CLI
 --prompts-dir PATH	Своя папка с промптами
 --context-examples N	Примеров A/B (только unlabeled)
+
 7. Где результаты
+   
 claude_*.py → <ROOT>/unlabeled/undivided/outputs/<agent>_<mode>.csv (путь одинаковый для всех трёх режимов — используйте --output, чтобы не перезаписать).
 
 run_detection.py → <root>/outputs/detector_results.csv (UTF-8-sig, корректно открывается в Excel).
@@ -150,6 +163,7 @@ run_detection.py → <root>/outputs/detector_results.csv (UTF-8-sig, корре�
 Колонки CSV: prompt_name, text_name, repeat, response (в run_detection.py — без repeat).
 
 8. Типичные ошибки
+   
 Ошибка	Причина	Решение
 Missing directory: ...	ROOT не совпадает со структурой	Проверить DEPTH/ROOT или передать --prompts-dir / --root
 claude CLI not installed	CLI не в PATH	Переустановить / добавить ~/.local/bin в PATH
@@ -157,7 +171,7 @@ Invalid numeric response	Модель ответила не числом	Про�
 output already exists	CSV уже есть	--overwrite или новый --output
 Empty text: ...	Пустой .txt	Удалить/исправить файл
 Not enough texts: available=... requested=...	Текстов меньше, чем --per-source	Уменьшить --per-source или добавить тексты
-9. Рекомендуемый порядок первого запуска
+10. Рекомендуемый порядок первого запуска
 claude --version — CLI работает.
 
 git clone репозитория, проверить структуру data/.
